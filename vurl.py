@@ -60,6 +60,19 @@ def _shift_string(text):
         return str.lstrip(text.split(" ",1)[1])
     return ""
 
+#Is this user one of vurl's betters?
+def _trusted_user(user):
+    if (re.search("badger@satgnu\.net", user) or
+            re.search("@unaffiliated/asema", user) or
+            re.search("@unaffiliated/kalir", user) or
+            re.search("~detasund@", user) or
+            re.search("~dtsund@", user) or
+            re.search("~zetsubou@", user) or
+            re.search("@unaffiliated/quairel", user)):
+        return True
+    return False
+
+#Random fun vurl
 def vurl(connection, event):
     origin = event.source().split("!")[0]
     to_vurl = _shift_string(event.arguments()[0])
@@ -129,7 +142,6 @@ def add_adverb(connection, event):
 
 
 
-
 #Drunken bender vurl
 class Rum:
     tots = 500000
@@ -181,6 +193,14 @@ def binge(connection, event):
     else:
         return "there isn't any :("
 
+def restock(connection, event):
+    if not _trusted_user(event.source()):
+        return ""
+    to_restock = random.randint(1,10)
+    Rum.tots += to_restock
+    return ("here, " + str(to_restock) + " tots o' rum (now there are " +
+            str(Rum.tots) + ")")
+
 def drunken(text):
     if Rum.drunk == 0:
         return text
@@ -197,7 +217,6 @@ def drunken(text):
         textlist[index + shift] = temp
     Rum.drunk -= 1
     return "".join(textlist)
-
 
 
 
@@ -256,8 +275,6 @@ def homre(connection, event):
 #stuff afterward, should be as follows:
 #^!trigger
 funclist = []
-funclist.append(TriggerFunction("^!hanftl$", hanftl))
-funclist.append(TriggerFunction("homre", homre))
 funclist.append(TriggerFunction("^!vurl", vurl))
 funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
@@ -265,6 +282,9 @@ funclist.append(TriggerFunction("^!coffee", coffee))
 funclist.append(TriggerFunction("rum", rum_autoresponse))
 funclist.append(TriggerFunction("^!rum$", rum))
 funclist.append(TriggerFunction("^!binge$", binge))
+funclist.append(TriggerFunction("^!restock$", restock))
+funclist.append(TriggerFunction("^!hanftl$", hanftl))
+funclist.append(TriggerFunction("homre", homre))
 
 
 #The rest of this file is the boring part, just related to the technical
