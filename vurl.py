@@ -72,6 +72,24 @@ def _trusted_user(user):
         return True
     return False
 
+
+
+
+#Once in a while, vurly decides to be useful.
+def decide(connection, event):
+    choices = _shift_string(event.arguments()[0]).split("or")
+    if len(choices) == 1:
+        choices = ("Yes", "No")
+    elif random.random() < 0.02:
+        if len(choices) == 2:
+            choices = ("Both", "Neither")
+        else:
+            choices = ("All " + str(len(choices)) + "!", "None of the above")
+    return random.choice(choices)
+
+
+
+
 #Random fun vurl
 def vurl(connection, event):
     origin = event.source().split("!")[0]
@@ -139,6 +157,24 @@ def add_adverb(connection, event):
     adverbs.append(adverb)
     return "Adverb added."
 
+def lime(connection, event):
+    target = _shift_string(event.arguments()[0])
+    #Original impl checked whether there actually is a "me" in the channel.
+    #I think not doing so is potentially funnier.
+    if target == "":
+        target = event.source().split("!")[0]
+
+    return ("/me pelts " + str(target) + " with limes. 'tis against the " +
+            "scurvy, don't y'know.")
+
+def melon(connection, event):
+    target = _shift_string(event.arguments()[0])
+    #Original impl checked whether there actually is a "me" in the channel.
+    #I think not doing so is potentially funnier.
+    if target == "":
+        target = event.source().split("!")[0]
+
+    return "/me pelts " + str(target) + " with melons."
 
 
 
@@ -275,9 +311,12 @@ def homre(connection, event):
 #stuff afterward, should be as follows:
 #^!trigger
 funclist = []
+funclist.append(TriggerFunction("^!decide", decide))
 funclist.append(TriggerFunction("^!vurl", vurl))
 funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
+funclist.append(TriggerFunction("^!lime", lime))
+funclist.append(TriggerFunction("^!melon", melon))
 funclist.append(TriggerFunction("^!coffee", coffee))
 funclist.append(TriggerFunction("rum", rum_autoresponse))
 funclist.append(TriggerFunction("^!rum$", rum))
