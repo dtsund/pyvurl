@@ -50,6 +50,10 @@ adverbs = open("adverbs.txt","r").readlines()
 #Create an IRC object
 irc = irclib.IRC()
 
+#All the users in all the channels we're in.  Channel name is dict key; dict
+#value is a list of names.
+users = {}
+
 #Remove the first token from a string.
 def _shift_string(text):
     if len(text.split(" ")) > 1:
@@ -175,18 +179,17 @@ funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
 
 
-def handle_echo(connection, event):
-    print ""
+#The rest of this file is the boring part, just related to the technical
+#workings of vurl.
 
-def handle_priv_notice(connection, event):
-    print ""
+#Don't try to get clever in how we track names.  Just refresh the entire list
+#when someone joins/leaves/etc.
+def handle_name_change(connection, event):
+    connection.names([event.target().split("!")[0]])
 
-def handle_no_space(connection, event):
-    print ""
-
-def handle_join(connection, event):
-    #TODO: Update userlist
-    print ""
+#Updates the name list for the channel in question.
+def handle_name_list(connection, event):
+    users[event.arguments()[1]] = event.arguments()[2].replace("@","").split(" ")
 
 def handle_pub_msg(connection, event):
     #event.arguments()[0]: The whole message.
@@ -204,6 +207,12 @@ def handle_pub_msg(connection, event):
 #Register event handlers
 irc.add_global_handler("pubmsg", handle_pub_msg)
 irc.add_global_handler("privmsg", handle_pub_msg)
+irc.add_global_handler("namreply", handle_name_list)
+irc.add_global_handler("part", handle_name_change)
+irc.add_global_handler("join", handle_name_change)
+irc.add_global_handler("nick", handle_name_change)
+irc.add_global_handler("quit", handle_name_change)
+irc.add_global_handler("kick", handle_name_change)
 
 
 #Create a server object, connect and join the channel
