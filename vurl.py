@@ -91,12 +91,17 @@ def vurl(connection, event):
     connection.action(event.target().split("!")[0], to_return)
     return ""
 
+#Python's garbage collector automatically closes files, so we don't have to
+#worry too much unless we actually write to the file.
 def add_verb(connection, event):
     verb = _shift_string(event.arguments()[0])
     if verb == "":
         return "Which verb?"
     verbfile = open("verbs.txt", "r+")
     verblines = verbfile.readlines()
+    for nick in users.get(event.target().split("!")[0],[]):
+        if verb == nick:
+            return "no random highlights please"
     for word in verblines:
         if verb == str.strip(word):
             return verb + " already listed, go away."
@@ -111,6 +116,9 @@ def add_adverb(connection, event):
         return "Which adverb?"
     adverbfile = open("adverbs.txt", "r+")
     adverblines = adverbfile.readlines()
+    for nick in users.get(event.target().split("!")[0],[]):
+        if verb == nick:
+            return "no random highlights please"
     for word in adverblines:
         if adverb == str.strip(word):
             return adverb + " already listed, go away."
