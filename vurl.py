@@ -50,16 +50,20 @@ adverbs = open("adverbs.txt","r").readlines()
 #Create an IRC object
 irc = irclib.IRC()
 
+#Remove the first token from a string.
+def _shift_string(text):
+    if len(text.split(" ")) > 1:
+        return str.lstrip(text.split(" ",1)[1])
+    return ""
+
 def vurl(connection, event):
     origin = to_vurl = event.source().split("!")[0]
-    if len(event.arguments()[0].split(" ")) > 1:
-        to_vurl = str.lstrip(event.arguments()[0].split(" ",1)[1])
-        #Original impl checked whether there actually is a "me" in the channel.
-        #I think not doing so is potentially funnier.
-        if to_vurl == "me":
-            to_vurl = origin
-    else:
+    to_vurl = _shift_string(event.arguments()[0])
+    #Original impl checked whether there actually is a "me" in the channel.
+    #I think not doing so is potentially funnier.
+    if to_vurl == "" or to_vurl == "me":
         to_vurl = origin
+
     verb = str.strip(random.choice(verbs))
     adverb = str.strip(random.choice(adverbs))
 
@@ -151,6 +155,7 @@ def handle_no_space(connection, event):
     print ""
 
 def handle_join(connection, event):
+    #TODO: Update userlist
     print ""
 
 def handle_pub_msg(connection, event):
