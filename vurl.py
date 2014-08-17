@@ -37,7 +37,7 @@ irclib.DEBUG = True
 
 #Connection information
 #TODO: Don't hardcode this, take them as arguments.
-network = "irc.freenode.net"
+network = "chat.freenode.net"
 port = 6667
 channel = "##arena-test"
 nick = "pyvurl"
@@ -61,7 +61,7 @@ def _shift_string(text):
     return ""
 
 def vurl(connection, event):
-    origin = to_vurl = event.source().split("!")[0]
+    origin = event.source().split("!")[0]
     to_vurl = _shift_string(event.arguments()[0])
     #Original impl checked whether there actually is a "me" in the channel.
     #I think not doing so is potentially funnier.
@@ -88,8 +88,7 @@ def vurl(connection, event):
     else:
         to_return = to_return + " " + adverb
 
-    connection.action(event.target().split("!")[0], to_return)
-    return ""
+    return "/me " + to_return
 
 #Python's garbage collector automatically closes files, so we don't have to
 #worry too much unless we actually write to the file.
@@ -127,6 +126,83 @@ def add_adverb(connection, event):
     adverbs.append(adverb)
     return "Adverb added."
 
+
+
+
+
+#Drunken bender vurl
+class Rum:
+    tots = 500000
+    drunk = 0
+
+def coffee(connection, event):
+    target = _shift_string(event.arguments()[0])
+    if target == "":
+        target = event.source().split("!")[0]
+    if target == connection.get_nickname():
+        Rum.drunk -= 10
+        if Rum.drunk < 0:
+            Rum.drunk = 0
+        return "/me purrs."
+    return "/me gets some coffee for " + target
+
+def rum_autoresponse(connection, event):
+    to_return = ""
+    if Rum.tots > 0:
+        to_return = ("/me hands " + event.source().split("!")[0] + " some rum,"
+                     + " because it isn't gone at the moment")
+        Rum.tots -= 1
+    else:
+        to_return = ("/kick " + event.source().split("!")[0] + " the rum is "
+                     + "always gone, and so are you")
+    return to_return
+
+def rum(connection, event):
+    if Rum.tots > 1:
+        return "(" + str(Rum.tots) + " tots of rum left)"
+    elif Rum.tots == 1:
+        return "(one tot of rum left)"
+    else:
+        return "(no rum left)"
+    #Should never happen.
+    return ""
+
+def binge(connection, event):
+    if Rum.drunk > 50:
+        return "I've had enough :("
+    if Rum.tots > 10:
+        to_drink = random.randint(1,10)
+        Rum.tots -= to_drink
+        Rum.drunk += to_drink
+        return ("/me drinks " + str(to_drink) + " measures of rum, leaving " +
+                str(Rum.tots) + " measures left")
+    elif Rum.tots > 0:
+        return "I'd better not, there's only " + str(Rum.tots) + " left"
+    else:
+        return "there isn't any :("
+
+def drunken(text):
+    if Rum.drunk == 0:
+        return text
+    textlist = list(text)
+    for i in xrange(Rum.drunk / 10 + 1):
+        index = random.randint(0, len(textlist) - 1)
+        shift = int(random.random() - 0.5 * Rum.drunk)
+        while index + shift >= len(textlist):
+            shfit -= 1
+        while index + shift < 0:
+            shift += 1
+        temp = textlist[index]
+        textlist[index] = textlist[index + shift]
+        textlist[index + shift] = temp
+    Rum.drunk -= 1
+    return "".join(textlist)
+
+
+
+
+
+###arena in-jokes
 #This function doesn't even pretend to follow 80cols.
 def hanftl(connection, event):
     quotelist = ["OH GOD NO",
@@ -185,6 +261,10 @@ funclist.append(TriggerFunction("homre", homre))
 funclist.append(TriggerFunction("^!vurl", vurl))
 funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
+funclist.append(TriggerFunction("^!coffee", coffee))
+funclist.append(TriggerFunction("rum", rum_autoresponse))
+funclist.append(TriggerFunction("^!rum$", rum))
+funclist.append(TriggerFunction("^!binge$", binge))
 
 
 #The rest of this file is the boring part, just related to the technical
@@ -209,8 +289,19 @@ def handle_pub_msg(connection, event):
         event.target = event.source
     for func in funclist:
         if re.search(func.trigger, event.arguments()[0]):
-            connection.privmsg(event.target().split("!")[0],
-                               func.function(connection, event))
+            to_print = func.function(connection, event)
+            to_print = drunken(to_print)
+            first_token = to_print.split(" ")[0]
+            if first_token == "/me":
+                connection.action(event.target().split("!")[0],
+                                  _shift_string(to_print))
+            elif first_token == "/kick":
+                connection.kick(event.target().split("!")[0],
+                                to_print.split(" ")[1],
+                                _shift_string(_shift_string(to_print)))
+            else:
+                connection.privmsg(event.target().split("!")[0],
+                                   to_print)
 
 #Register event handlers
 irc.add_global_handler("pubmsg", handle_pub_msg)
