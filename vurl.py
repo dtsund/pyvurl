@@ -159,8 +159,6 @@ def add_adverb(connection, event):
 
 def lime(connection, event):
     target = _shift_string(event.arguments()[0])
-    #Original impl checked whether there actually is a "me" in the channel.
-    #I think not doing so is potentially funnier.
     if target == "":
         target = event.source().split("!")[0]
 
@@ -169,12 +167,32 @@ def lime(connection, event):
 
 def melon(connection, event):
     target = _shift_string(event.arguments()[0])
-    #Original impl checked whether there actually is a "me" in the channel.
-    #I think not doing so is potentially funnier.
     if target == "":
         target = event.source().split("!")[0]
 
     return "/me pelts " + str(target) + " with melons."
+
+def cookie(connection, event):
+    target = _shift_string(event.arguments()[0])
+    if target == "":
+        target = event.source().split("!")[0]
+    if target == connection.get_nickname():
+        return "/me magically finds a cookie and consumes it noisily"
+    return "/me gives " + str(target) + " a cookie"
+
+def shoot(connection, event):
+    target = _shift_string(event.arguments()[0])
+    if target == "":
+        connection.privmsg(event.target().split("!")[0], drunken("shoot who?"))
+        connection.privmsg(event.target().split("!")[0],
+                           drunken("well, then..."))
+        return ("/kick " + event.target().split("!")[0] + " " +
+                event.source().split("!")[0] + " ...you!")
+    elif target == connection.get_nickname():
+        return ("/kick " + event.target().split("!")[0] + " " +
+                event.source().split("!")[0] + " no u")
+    else:
+        return "/me shoots " + target
 
 
 
@@ -317,6 +335,8 @@ funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
 funclist.append(TriggerFunction("^!lime", lime))
 funclist.append(TriggerFunction("^!melon", melon))
+funclist.append(TriggerFunction("^!cookie", cookie))
+funclist.append(TriggerFunction("^!shoot", shoot))
 funclist.append(TriggerFunction("^!coffee", coffee))
 funclist.append(TriggerFunction("rum", rum_autoresponse))
 funclist.append(TriggerFunction("^!rum$", rum))
@@ -355,9 +375,12 @@ def handle_pub_msg(connection, event):
                 connection.action(event.target().split("!")[0],
                                   _shift_string(to_print))
             elif first_token == "/kick":
+                #Doing this with nested _shift_strings safely handles the case
+                #where there is no message
                 connection.kick(event.target().split("!")[0],
-                                to_print.split(" ")[1],
-                                _shift_string(_shift_string(to_print)))
+                                to_print.split(" ")[2],
+                                _shift_string(_shift_string(
+                                                _shift_string(to_print))))
             else:
                 connection.privmsg(event.target().split("!")[0],
                                    to_print)
