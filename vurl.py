@@ -87,6 +87,34 @@ def vurl(connection, event):
     connection.action(event.target().split("!")[0], to_return)
     return ""
 
+def add_verb(connection, event):
+    verb = _shift_string(event.arguments()[0])
+    if verb == "":
+        return "Which verb?"
+    verbfile = open("verbs.txt", "r+")
+    verblines = verbfile.readlines()
+    for word in verblines:
+        if verb == str.strip(word):
+            return verb + " already listed, go away."
+    verbfile.write(verb + "\n")
+    verbfile.close()
+    verbs.append(verb)
+    return "Verb added."
+
+def add_adverb(connection, event):
+    adverb = _shift_string(event.arguments()[0])
+    if adverb == "":
+        return "Which adverb?"
+    adverbfile = open("adverbs.txt", "r+")
+    adverblines = adverbfile.readlines()
+    for word in adverblines:
+        if adverb == str.strip(word):
+            return adverb + " already listed, go away."
+    adverbfile.write(adverb + "\n")
+    adverbfile.close()
+    adverbs.append(adverb)
+    return "Adverb added."
+
 #This function doesn't even pretend to follow 80cols.
 def hanftl(connection, event):
     quotelist = ["OH GOD NO",
@@ -143,6 +171,8 @@ funclist = []
 funclist.append(TriggerFunction("^!hanftl$", hanftl))
 funclist.append(TriggerFunction("homre", homre))
 funclist.append(TriggerFunction("^!vurl", vurl))
+funclist.append(TriggerFunction("^!verb", add_verb))
+funclist.append(TriggerFunction("^!adverb", add_adverb))
 
 
 def handle_echo(connection, event):
