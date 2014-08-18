@@ -60,6 +60,15 @@ def _shift_string(text):
         return str.lstrip(text.split(" ",1)[1])
     return ""
 
+def _default_self_target(event):
+    to_return = _shift_string(event.arguments()[0])
+    if to_return == "":
+        to_return = event.source().split("!")[0]
+    return to_return
+
+def _default_empty_target(event):
+    return _shift_string(event.arguments()[0])
+
 #Is this user one of vurl's betters?
 def _trusted_user(user):
     if (re.search("badger@satgnu\.net", user) or
@@ -77,7 +86,7 @@ def _trusted_user(user):
 
 #Once in a while, vurly decides to be useful.
 def decide(connection, event):
-    choices = _shift_string(event.arguments()[0]).split("or")
+    choices = _default_empty_target(event).split("or")
     if len(choices) == 1:
         choices = ("Yes", "No")
     elif random.random() < 0.02:
@@ -124,7 +133,7 @@ def vurl(connection, event):
 #Python's garbage collector automatically closes files, so we don't have to
 #worry too much unless we actually write to the file.
 def add_verb(connection, event):
-    verb = _shift_string(event.arguments()[0])
+    verb = _default_empty_target(event)
     if verb == "":
         return "Which verb?"
     verbfile = open("verbs.txt", "r+")
@@ -141,7 +150,7 @@ def add_verb(connection, event):
     return "Verb added."
 
 def add_adverb(connection, event):
-    adverb = _shift_string(event.arguments()[0])
+    adverb = _default_empty_target(event)
     if adverb == "":
         return "Which adverb?"
     adverbfile = open("adverbs.txt", "r+")
@@ -158,30 +167,24 @@ def add_adverb(connection, event):
     return "Adverb added."
 
 def lime(connection, event):
-    target = _shift_string(event.arguments()[0])
-    if target == "":
-        target = event.source().split("!")[0]
+    target = _default_self_target(event)
 
     return ("/me pelts " + str(target) + " with limes. 'tis against the " +
             "scurvy, don't y'know.")
 
 def melon(connection, event):
-    target = _shift_string(event.arguments()[0])
-    if target == "":
-        target = event.source().split("!")[0]
+    target = _default_self_target(event)
 
     return "/me pelts " + str(target) + " with melons."
 
 def cookie(connection, event):
-    target = _shift_string(event.arguments()[0])
-    if target == "":
-        target = event.source().split("!")[0]
+    target = _default_self_target(event)
     if target == connection.get_nickname():
         return "/me magically finds a cookie and consumes it noisily"
     return "/me gives " + str(target) + " a cookie"
 
 def shoot(connection, event):
-    target = _shift_string(event.arguments()[0])
+    target = _default_empty_target(event)
     if target == "":
         connection.privmsg(event.target().split("!")[0], drunken("shoot who?"))
         connection.privmsg(event.target().split("!")[0],
@@ -193,6 +196,25 @@ def shoot(connection, event):
                 event.source().split("!")[0] + " no u")
     else:
         return "/me shoots " + target
+
+def criw(connection, event):
+    target = _default_empty_target(event)
+    if target == "":
+        return "/me criws"
+    return "/me criws at " + target
+
+def glomp(connection, event):
+    target = _default_self_target(event)
+    if target == "grue":
+        connection.action(event.target().split("!")[0],
+                          drunken("glomps the grue"))
+        connection.action(event.target().split("!")[0],
+                          drunken("gets eaten by the grue!"))
+        connection.action(event.target().split("!")[0],
+                          drunken("dies horribly"))
+        return "/part aaaarrrrghh!!! *crunch*"
+    return "/me glomps " + target + " *^___^*"
+
 
 
 
@@ -337,6 +359,8 @@ funclist.append(TriggerFunction("^!lime", lime))
 funclist.append(TriggerFunction("^!melon", melon))
 funclist.append(TriggerFunction("^!cookie", cookie))
 funclist.append(TriggerFunction("^!shoot", shoot))
+funclist.append(TriggerFunction("^!criw", criw))
+funclist.append(TriggerFunction("^!glomp", glomp))
 funclist.append(TriggerFunction("^!coffee", coffee))
 funclist.append(TriggerFunction("rum", rum_autoresponse))
 funclist.append(TriggerFunction("^!rum$", rum))
@@ -381,6 +405,9 @@ def handle_pub_msg(connection, event):
                                 to_print.split(" ")[2],
                                 _shift_string(_shift_string(
                                                 _shift_string(to_print))))
+            elif first_token == "/part":
+                connection.part(event.target().split("!")[0],
+                                to_print.split(" ")[1])
             else:
                 connection.privmsg(event.target().split("!")[0],
                                    to_print)
