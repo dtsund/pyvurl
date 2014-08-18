@@ -385,7 +385,6 @@ def handle_name_list(connection, event):
 def handle_pub_msg(connection, event):
     #event.arguments()[0]: The whole message.
     #TODO: check event.source() to make sure vurl doesn't trigger herself.
-    #TODO: Make sure empty strings aren't printed.
     #Redirect event.target in the case of private messages, so that the
     #response goes to the sender.
     if event.target() == connection.get_nickname():
@@ -393,6 +392,8 @@ def handle_pub_msg(connection, event):
     for func in funclist:
         if re.search(func.trigger, event.arguments()[0]):
             to_print = func.function(connection, event)
+            if to_print == "":
+                continue
             to_print = drunken(to_print)
             first_token = to_print.split(" ")[0]
             if first_token == "/me":
