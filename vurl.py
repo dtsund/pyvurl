@@ -8,9 +8,23 @@ import string
 vurl.py, based on Tim Goodwyn's vurl.pl.
 
 How to add functionality:
-First, add a function.  This function will take as an argument the string
-that the user typed when the function was triggered, and return the thing
-vurly should say.
+First, add a function.  This function will take as an argument a dict containing
+those functions you might want in order to read input or interact with the
+channel or user.
+
+Functions are as follows:
+    funcs["args"](): What the user typed after the first token.  Typically, the
+                     first token is just the !command.
+    funcs["me"](text): Send a /me action to the channel.
+    funcs["msg"](text): Send text to the appropriate channel/person.
+    funcs["origin"](): Name of the person who triggered vurl.
+    funcs["trusted"](): Whether the triggering person is trusted with certain
+                        commands.
+    funcs["myname"](): Vurly's current name.
+    funcs["userlist"](): List of users currently in the channel.  Returns "" for
+                         private message triggers.
+    funcs["default_self"](): Same as "args" if the result is nonempty.
+                             Same as "origin" otherwise.
 
 Second, add to funclist a new TriggerFunction item; the first argument to
 the TriggerFunction call is the regex that will trigger the function, and
@@ -23,7 +37,7 @@ that apply.
 It's really that simple.
 
 Don't do global variables, please, if only for namespacing reasons.  Make a
-class and put your variables in that.
+class and put your variables in that if you need persistence.
 """
 
 class TriggerFunction:
@@ -44,14 +58,17 @@ nick = "pyvurl"
 name = "Vurlybrace"
 
 #Load some global stuff.
-verbs = open("verbs.txt","r").readlines()
-adverbs = open("adverbs.txt","r").readlines()
+class Vurl:
+    verbs = open("verbs.txt","r").readlines()
+    adverbs = open("adverbs.txt","r").readlines()
+    messages = 0
 
 #Create an IRC object
 irc = irclib.IRC()
 
 #All the users in all the channels we're in.  Channel name is dict key; dict
 #value is a list of names.
+#FIXME: Currently assumes only one server
 users = {}
 
 #Remove the first token from a string.
@@ -60,14 +77,10 @@ def _shift_string(text):
         return str.lstrip(text.split(" ",1)[1])
     return ""
 
-def _default_self_target(event):
-    to_return = _shift_string(event.arguments()[0])
-    if to_return == "":
-        to_return = event.source().split("!")[0]
-    return to_return
-
-def _default_empty_target(event):
-    return _shift_string(event.arguments()[0])
+def _default_self_target(target, user):
+    if target == "":
+        return user
+    return target
 
 #Is this user one of vurl's betters?
 def _trusted_user(user):
@@ -85,8 +98,8 @@ def _trusted_user(user):
 
 
 #Once in a while, vurly decides to be useful.
-def decide(connection, event):
-    choices = _default_empty_target(event).split("or")
+def decide(funcs):
+    choices = funcs["args"]().split("or")
     if len(choices) == 1:
         choices = ("Yes", "No")
     elif random.random() < 0.02:
@@ -100,16 +113,16 @@ def decide(connection, event):
 
 
 #Random fun vurl
-def vurl(connection, event):
-    origin = event.source().split("!")[0]
-    to_vurl = _shift_string(event.arguments()[0])
+def vurl(funcs):
+    origin = funcs["origin"]()
+    to_vurl = funcs["args"]()
     #Original impl checked whether there actually is a "me" in the channel.
     #I think not doing so is potentially funnier.
     if to_vurl == "" or to_vurl == "me":
         to_vurl = origin
 
-    verb = str.strip(random.choice(verbs))
-    adverb = str.strip(random.choice(adverbs))
+    verb = str.strip(random.choice(Vurl.verbs))
+    adverb = str.strip(random.choice(Vurl.adverbs))
 
     #&(name) should expand to the caller in both verb and adverb
     verb = re.sub(r"&\(name\)", origin, verb)
@@ -132,13 +145,13 @@ def vurl(connection, event):
 
 #Python's garbage collector automatically closes files, so we don't have to
 #worry too much unless we actually write to the file.
-def add_verb(connection, event):
-    verb = _default_empty_target(event)
+def add_verb(funcs):
+    verb = funcs["args"]()
     if verb == "":
         return "Which verb?"
     verbfile = open("verbs.txt", "r+")
     verblines = verbfile.readlines()
-    for nick in users.get(event.target().split("!")[0],[]):
+    for nick in funcs["userlist"]():
         if verb == nick:
             return "no random highlights please"
     for word in verblines:
@@ -146,16 +159,16 @@ def add_verb(connection, event):
             return verb + " already listed, go away."
     verbfile.write(verb + "\n")
     verbfile.close()
-    verbs.append(verb)
+    Vurl.verbs.append(verb)
     return "Verb added."
 
-def add_adverb(connection, event):
-    adverb = _default_empty_target(event)
+def add_adverb(funcs):
+    adverb = funcs["args"]()
     if adverb == "":
         return "Which adverb?"
     adverbfile = open("adverbs.txt", "r+")
     adverblines = adverbfile.readlines()
-    for nick in users.get(event.target().split("!")[0],[]):
+    for nick in funcs["userlist"]():
         if verb == nick:
             return "no random highlights please"
     for word in adverblines:
@@ -163,57 +176,145 @@ def add_adverb(connection, event):
             return adverb + " already listed, go away."
     adverbfile.write(adverb + "\n")
     adverbfile.close()
-    adverbs.append(adverb)
+    Vurl.adverbs.append(adverb)
     return "Adverb added."
 
-def lime(connection, event):
-    target = _default_self_target(event)
+def lime(funcs):
+    return ("/me pelts " + funcs["default_self"]() + " with limes. 'tis against"
+            + " the scurvy, don't y'know.")
 
-    return ("/me pelts " + str(target) + " with limes. 'tis against the " +
-            "scurvy, don't y'know.")
+def melon(funcs):
+    return "/me pelts " + funcs["default_self"]() + " with melons."
 
-def melon(connection, event):
-    target = _default_self_target(event)
-
-    return "/me pelts " + str(target) + " with melons."
-
-def cookie(connection, event):
-    target = _default_self_target(event)
-    if target == connection.get_nickname():
+def cookie(funcs):
+    target = funcs["default_self"]()
+    if target == funcs["myname"]():
         return "/me magically finds a cookie and consumes it noisily"
-    return "/me gives " + str(target) + " a cookie"
+    return "/me gives " + target + " a cookie"
 
-def shoot(connection, event):
-    target = _default_empty_target(event)
+def shoot(funcs):
+    target = funcs["args"]()
     if target == "":
-        connection.privmsg(event.target().split("!")[0], drunken("shoot who?"))
-        connection.privmsg(event.target().split("!")[0],
-                           drunken("well, then..."))
-        return ("/kick " + event.target().split("!")[0] + " " +
-                event.source().split("!")[0] + " ...you!")
-    elif target == connection.get_nickname():
-        return ("/kick " + event.target().split("!")[0] + " " +
-                event.source().split("!")[0] + " no u")
+        funcs["msg"]("shoot who?")
+        funcs["msg"]("well, then...")
+        return ("/kick " + funcs["target"]() + " " +
+                funcs["origin"]() + " ...you!")
+    elif target == funcs["myname"]():
+        return ("/kick " + funcs["target"]() + " " +
+                funcs["origin"]() + " no u")
     else:
         return "/me shoots " + target
 
-def criw(connection, event):
-    target = _default_empty_target(event)
+def criw(funcs):
+    target = funcs["args"]()
     if target == "":
         return "/me criws"
     return "/me criws at " + target
 
-def glomp(connection, event):
-    target = _default_self_target(event)
+def glomp(funcs):
+    target = funcs["default_self"]()
     if target == "grue":
-        connection.action(event.target().split("!")[0],
-                          drunken("glomps the grue"))
-        connection.action(event.target().split("!")[0],
-                          drunken("gets eaten by the grue!"))
-        connection.action(event.target().split("!")[0],
-                          drunken("dies horribly"))
+        funcs["me"]("glomps the grue")
+        funcs["me"]("gets eaten by the grue!")
+        funcs["me"]("dies horribly")
         return "/part aaaarrrrghh!!! *crunch*"
     return "/me glomps " + target + " *^___^*"
+
+def poke(funcs):
+    target = funcs["default_self"]()
+    if target == "grue":
+        funcs["me"]("pokes the grue")
+        funcs["me"]("gets eaten by the grue!")
+        funcs["me"]("dies horribly")
+        return "/part aaaarrrrghh!!! *crunch*"
+    return "/me pokes " + target
+
+def bla(funcs):
+    arg = funcs["args"]()
+    chars = 0
+    if arg.isdigit():
+        chars = int(arg)
+        if chars > 100:
+            return "nope"
+    else:
+        chars = random.randint(5,9)
+    to_return = ""
+    for i in xrange(chars):
+        to_return = to_return + random.choice(string.ascii_lowercase)
+    return to_return
+
+def foo(funcs):
+    return "bar"
+
+def laar(funcs):
+    excl_first = random.choice([True,False])
+
+    engl_dict = open("/usr/share/dict/british-english", "r")
+    engl_words = engl_dict.readlines()
+    to_return = ""
+    for i in xrange(random.randint(3,5)):
+        to_return = to_return + str.strip(random.choice(engl_words)) + " "
+    to_return = str.strip(to_return)
+
+    num_excl = random.randint(1,6)
+    failed_excl = random.randint(1,num_excl)
+    num_questions = random.randint(1,6)
+    failed_questions = random.randint(1,num_questions)
+
+    excls = ""
+    for i in xrange(num_excl - failed_excl):
+        excls = excls + "!"
+    for i in xrange(failed_excl):
+        excls = excls + "1"
+
+    quests = ""
+    for i in xrange(num_questions - failed_questions):
+        quests = quests + "?"
+    for i in xrange(failed_questions):
+        quests = quests + "/"
+
+    if excl_first:
+        return to_return + excls + quests
+    return to_return + quests + excls
+
+def celebrate(funcs):
+    return "/me celebrates. woo. <|:)"
+
+def blurge(funcs):
+    return (str(Vurl.messages) + " messages since last reload; " +
+            str(len(Vurl.verbs)) + " verbs; " + str(len(Vurl.adverbs)) +
+            " adverbs; scrpts not implemented.")
+
+def spleen(funcs):
+    target = random.choice(funcs["userlist"]())
+    if target != "":
+        return "/me pokes " + target + " in the spleen"
+    return "/me pokes " + funcs["origin"]() + " in the spleen"
+
+def long_vowel(funcs):
+    #Take the first vowel and stretch it.
+    return re.sub("[aeiou]", lambda match: match.group(0) * random.randint(3,7),
+                  funcs["args"](), count = 1)
+
+def flib(funcs):
+    return "/me test"
+
+
+def test(funcs):
+    return "/me flib"
+
+def heart(funcs):
+    return "<3 " + funcs["default_self"]()
+
+def nickchange(funcs):
+    if not funcs["trusted"]():
+        return funcs["origin"]() + ", no :("
+    new_nick = funcs["args"]()
+    if re.search(r"[\.\*\s]", new_nick):
+        return "No you'll break it :<"
+
+    funcs["nick"](new_nick)
+    return ""
 
 
 
@@ -223,29 +324,27 @@ class Rum:
     tots = 500000
     drunk = 0
 
-def coffee(connection, event):
-    target = _shift_string(event.arguments()[0])
-    if target == "":
-        target = event.source().split("!")[0]
-    if target == connection.get_nickname():
+def coffee(funcs):
+    target = funcs["default_self"]()
+    if target == funcs["myname"]():
         Rum.drunk -= 10
         if Rum.drunk < 0:
             Rum.drunk = 0
         return "/me purrs."
     return "/me gets some coffee for " + target
 
-def rum_autoresponse(connection, event):
+def rum_autoresponse(funcs):
     to_return = ""
     if Rum.tots > 0:
-        to_return = ("/me hands " + event.source().split("!")[0] + " some rum,"
+        to_return = ("/me hands " + funcs["origin"]() + " some rum,"
                      + " because it isn't gone at the moment")
         Rum.tots -= 1
     else:
-        to_return = ("/kick " + event.source().split("!")[0] + " the rum is "
+        to_return = ("/kick " + funcs["origin"]() + " the rum is "
                      + "always gone, and so are you")
     return to_return
 
-def rum(connection, event):
+def rum(funcs):
     if Rum.tots > 1:
         return "(" + str(Rum.tots) + " tots of rum left)"
     elif Rum.tots == 1:
@@ -255,7 +354,7 @@ def rum(connection, event):
     #Should never happen.
     return ""
 
-def binge(connection, event):
+def binge(funcs):
     if Rum.drunk > 50:
         return "I've had enough :("
     if Rum.tots > 10:
@@ -269,8 +368,8 @@ def binge(connection, event):
     else:
         return "there isn't any :("
 
-def restock(connection, event):
-    if not _trusted_user(event.source()):
+def restock(funcs):
+    if not funcs["trusted"]():
         return ""
     to_restock = random.randint(1,10)
     Rum.tots += to_restock
@@ -299,7 +398,7 @@ def drunken(text):
 
 ###arena in-jokes
 #This function doesn't even pretend to follow 80cols.
-def hanftl(connection, event):
+def hanftl(funcs):
     quotelist = ["OH GOD NO",
 	             "HOW CAN EVERYTHING BE ON FIRE AT ONCE?",
 	             "WHY DOES THIS AUTO-SCOUT HAVE TWO ION BOMBS?",
@@ -341,7 +440,7 @@ def hanftl(connection, event):
 	             "HOLY SHIT ENEMY SHIP WITH BURST LASER THREE AND TWO BEAM DRONES IN AN ASTEROID FIELD WHERE DID ALL MY HULL POINTS GO"]
     return random.choice(quotelist)
 
-def homre(connection, event):
+def homre(funcs):
     return "In trouble!  DRIVE!  DRIVE!  DRIVE!"
 
 #This is where items get added to funclist.
@@ -361,6 +460,18 @@ funclist.append(TriggerFunction("^!cookie", cookie))
 funclist.append(TriggerFunction("^!shoot", shoot))
 funclist.append(TriggerFunction("^!criw", criw))
 funclist.append(TriggerFunction("^!glomp", glomp))
+funclist.append(TriggerFunction("^!poke", poke))
+funclist.append(TriggerFunction("^!bla", bla))
+funclist.append(TriggerFunction("^!foo", foo))
+funclist.append(TriggerFunction("^!laar", laar))
+funclist.append(TriggerFunction("^!celebrate", celebrate))
+funclist.append(TriggerFunction("^!blurge", blurge))
+funclist.append(TriggerFunction("^!spleen", spleen))
+funclist.append(TriggerFunction("^!long", long_vowel))
+funclist.append(TriggerFunction("^!flib", flib))
+funclist.append(TriggerFunction("^!test", test))
+funclist.append(TriggerFunction("^!<3", heart))
+funclist.append(TriggerFunction("^!nick", nickchange))
 funclist.append(TriggerFunction("^!coffee", coffee))
 funclist.append(TriggerFunction("rum", rum_autoresponse))
 funclist.append(TriggerFunction("^!rum$", rum))
@@ -387,11 +498,30 @@ def handle_pub_msg(connection, event):
     #TODO: check event.source() to make sure vurl doesn't trigger herself.
     #Redirect event.target in the case of private messages, so that the
     #response goes to the sender.
+    #Make a dict of useful things that the individual functions might want.
+    Vurl.messages += 1
+    usefuls = { "me"     : lambda act:
+                               connection.action(event.target().split("!")[0],
+                                                 drunken(act)),
+                "msg"    : lambda msg:
+                               connection.privmsg(event.target().split("!")[0],
+                                                 drunken(msg)),
+                "origin" : lambda: event.source().split("!")[0],
+                "trusted": lambda: _trusted_user(event.source()),
+                "target" : lambda: event.target().split("!")[0],
+                "myname" : lambda: connection.get_nickname(),
+                "args"   : lambda: _shift_string(event.arguments()[0]),
+                "userlist" : lambda: users.get(event.target().split("!")[0],[""]),
+                "default_self" : lambda: _default_self_target(
+                                            _shift_string(event.arguments()[0]),
+                                            event.source().split("!")[0]),
+                "nick"   : lambda new: connection.nick(new)}
+
     if event.target() == connection.get_nickname():
         event.target = event.source
     for func in funclist:
         if re.search(func.trigger, event.arguments()[0]):
-            to_print = func.function(connection, event)
+            to_print = func.function(usefuls)
             if to_print == "":
                 continue
             to_print = drunken(to_print)
