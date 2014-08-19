@@ -25,6 +25,10 @@ Functions are as follows:
                          private message triggers.
     funcs["default_self"](): Same as "args" if the result is nonempty.
                              Same as "origin" otherwise.
+    funcs["nick"](new): Changes nick to whatever new is.
+
+Return strings beginning with "/me", "/kick", and "/part" will be parsed in an
+intuitive fashion.
 
 Second, add to funclist a new TriggerFunction item; the first argument to
 the TriggerFunction call is the regex that will trigger the function, and
@@ -82,6 +86,14 @@ def _default_self_target(target, user):
         return user
     return target
 
+#I hate using exceptions for this...
+def isfloat(check):
+    try:
+        float(check)
+    except ValueError:
+        return False
+    return True
+
 #Is this user one of vurl's betters?
 def _trusted_user(user):
     if (re.search("badger@satgnu\.net", user) or
@@ -108,6 +120,103 @@ def decide(funcs):
         else:
             choices = ("All " + str(len(choices)) + "!", "None of the above")
     return random.choice(choices)
+
+def rand(funcs):
+    args = funcs["args"]().split(" ")
+    minval = 0
+    maxval = 0
+    floating_point = True
+    if len(args) >= 2 and isfloat(args[0]) and isfloat(args[1]):
+        if args[0].isdigit() and args[1].isdigit():
+            minval = int(args[0])
+            maxval = int(args[1])
+            floating_point = False
+        else:
+            minval = float(args[0])
+            maxval = float(args[1])
+    elif len(args) >= 1 and isfloat(args[0]):
+        if args[0].isdigit():
+            maxval = int(args[0])
+            floating_point = False
+        else:
+            maxval = float(args[0])
+    else:
+        maxval = 9
+        floating_point = False
+    if floating_point:
+        return str(random.random() * (maxval - minval) + minval)
+    return random.randint(minval, maxval)
+
+def roll_dice(dice, sides, mod, force):
+    total = mod
+    for i in xrange(dice):
+        roll = random.randint(1,sides)
+        if force and roll < sides/2:
+            roll = sides/2
+        total += roll
+    return total
+
+def roll_internal(args, force):
+    times = 1
+    dice = 1
+    sides = 20
+    mod = 0
+    #I know regexes can get much uglier than this, but I hope to never write
+    #such a one.  Extracts integers i, n, s, and c from i#nds+c, where the i#,
+    #nd, and +c may not exist.
+    parsed = re.match(
+                r"(?P<numtimes>\d+#)?(?P<dice>(\d+d)?\d+)(?P<endmod>[\+-]\d+)?",
+                args)
+    if args == "":
+        pass #Just roll 1d20 here_
+    elif parsed:
+        core_dice = parsed.group("dice").split("d")
+        if len(core_dice) > 1:
+            dice = int(core_dice[0])
+            sides = int(core_dice[1])
+        else:
+            sides = int(core_dice[0])
+        if parsed.group("endmod"):
+            mod = int(parsed.group("endmod"))
+        if parsed.group("numtimes"):
+            times = int(parsed.group("numtimes").split("#")[0])
+    else:
+        return "No match, sorry"
+    if dice < 1 or sides < 1 or times < 1:
+        return "You are a charlatan."
+    if times > 200:
+        return "too many numbers :("
+    if dice * times > 1000000:
+        return "too many dice :("
+
+    to_return = "("
+    if times != 1:
+        to_return += str(times) + "#"
+    to_return += str(dice) + "d" + str(sides)
+    if mod > 0:
+        to_return += "+"
+    if mod != 0:
+        to_return += str(mod)
+    to_return += ") "
+    for i in xrange(times):
+        to_return += str(roll_dice(dice, sides, mod, force)) + " "
+    return to_return
+
+
+def roll(funcs):
+    return funcs["origin"]() + ": " + roll_internal(funcs["args"](),  False)
+
+def rollstats(funcs):
+    total = 0.0
+    iterations = 10000
+    for i in xrange(iterations):
+        total += roll_dice(3,6,0)
+    return ("3d6 average: " + str(total/iterations) + " over " + str(iterations)
+            + " rolls")
+
+#Like roll, but forces each individual die to return at least half maximum value.
+def avroll(funcs):
+    return funcs["origin"]() + ": " +  roll_internal(funcs["args"](), True)
 
 
 
@@ -451,6 +560,10 @@ def homre(funcs):
 #^!trigger
 funclist = []
 funclist.append(TriggerFunction("^!decide", decide))
+funclist.append(TriggerFunction("^!rand", rand))
+funclist.append(TriggerFunction("^!roll", roll))
+funclist.append(TriggerFunction("^!rollstats", rollstats))
+funclist.append(TriggerFunction("^!avroll", avroll))
 funclist.append(TriggerFunction("^!vurl", vurl))
 funclist.append(TriggerFunction("^!verb", add_verb))
 funclist.append(TriggerFunction("^!adverb", add_adverb))
