@@ -51,16 +51,6 @@ class TriggerFunction:
         #Function to call.
         self.function = func
 
-irclib.DEBUG = True
-
-#Connection information
-#TODO: Don't hardcode this, take them as arguments.
-network = "chat.freenode.net"
-port = 6667
-channel = "##arena-test"
-nick = "pyvurl"
-name = "Vurlybrace"
-
 #Load some global stuff.
 class Vurl:
     verbs = open("verbs.txt","r").readlines()
@@ -666,14 +656,26 @@ irc.add_global_handler("nick", handle_name_change)
 irc.add_global_handler("quit", handle_name_change)
 irc.add_global_handler("kick", handle_name_change)
 
+def main():
+    irclib.DEBUG = True
 
-#Create a server object, connect and join the channel
-server = irc.server()
-server.connect(network, port, nick, ircname = name)
-server.join(channel)
+    #Connection information
+    #TODO: Don't hardcode this, take them as arguments.
+    network = "chat.freenode.net"
+    port = 6667
+    channel = "##arena-test"
+    nick = "pyvurl"
+    name = "Vurlybrace"
 
-#Process everything, forever.
-irc.process_forever()
+    #Create a server object, connect and join the channel
+    server = irc.server()
+    server.connect(network, port, nick, ircname = name)
+    server.join(channel)
 
+    #Process everything, forever.
+    irc.process_forever()
+
+if __name__ == "__main__":
+    main()
 
 
